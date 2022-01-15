@@ -30,49 +30,92 @@ class Board:
 
     def __init__(self):
         self.n = 17
-        self.m = 26
-        self.board = np.zeros([self.n, self.m], dtype='int')
+        self.m = 25
+        self.board = [['NULL' for _ in range(self.m)] for _ in range(self.n)]
         self.refresh_board()  # start up board
         self.board_dict = {(i, j): self.board[i][j] for i in range(
-            self.n) for j in range(26) if self.board[i][j] != -1}
+            self.n) for j in range(self.m) if self.board[i][j] != 'NULL'}
+        # quadrant definitions. Starts at 6 o'clock, 12 o'clock, 4, 10, 3, 7
+        # dictionary with keys as quadrant number keys,
+        # for example (0, 12, 1, 0) means the quadrant starts at (0, 12) and moves down but not left or right
+        self.quadrants = {
+            0: (0, 12, (1, -1), (1, 1)),
+            1: (16, 12, (-1, -1), (-1, 1)),
+            2: (12, 24, (0, -2), (-1, -1)),
+            3: (4, 0, (0, 2), (1, 1)),
+            4: (4, 24, (0, -2), (1, -1)),
+            5: (12, 0, (0, 2), (-1, 1))
+        }
+        self.valid_colors = {'blue': 'b', 'green': 'g', 'purple': 'p',
+                             'red': 'r', 'orange': 'o', 'yellow': 'y', 'white': 'w', 'black': 'B'}
+        self.taken_colors = {}
 
         self.legal_moves = np.array([])
 
-        self.players = np.array([])
+        self.players = []
+        self.turn = None  # player whose turn it is
 
-        # self.teams = ['black', 'blue', 'red', 'green', 'purple', 'yellow']
-
-    def register_player(self, player: Player):
+    def register_player(self, color: str):
         id = len(self.players) + 1
-        color = player.color
-        if color not in self.players[:, 1]:
-            self.players.append((id, player.color))
+        if id <= 5 and color not in self.taken_colors and color in self.valid_colors:
+            player = Player(color=color, board=self.board, id=id)
+            self.players.append(player)
+            self.taken_colors[color] = True
+            return player
+        else:
+            return -1
 
-        return id
-
-    def get_quadrant(quadrant: int):
+    def get_quadrant(self, quadrant: int):
         """
         Get grid with 1s in quadrant 'quadrant' and 0 elsewhere
         """
-        pass
+        quad_index = []
+        quadrants = self.quadrants
+        start = quadrants[quadrant][0:2]
+        d1 = np.array(quadrants[quadrant][2])
+        d2 = np.array(quadrants[quadrant][3])
+        indices = set({start})
+        for i in range(4):
+            quad_index.extend(indices)
+            indices = set({tuple(np.array(x)+d1) for x in indices}
+                          ) | set({tuple(np.array(x)+d2) for x in indices})
 
-    def clear_board(self, fill=-1):
-        for i in range(17):
-            for j in range(26):
+        return quad_index
+
+    def fill_region(self, region, fill):
+        """
+        fill region (list of tuples) with fill (string)
+        """
+        for i, j in region:
+            self.board[i][j] = fill
+
+    def fill_quadrant(self, quadrant, fill):
+        """
+        fill quadrant (index from 0 to 5) with fill (string)
+        """
+        region = self.get_quadrant(quadrant=quadrant)
+        self.fill_region(region=region, fill=fill)
+
+    def clear_board(self, fill='NULL'):
+        """
+        clears board. does not clear players
+        """
+        for i in range(self.n):
+            for j in range(self.m):
                 self.board[i][j] = fill
 
-    def refresh_board(self, blank=-1):
+    def refresh_board(self, blank='NULL', symbol='0'):
         self.clear_board(fill=blank)
         board = self.board
 
-        n = 17
-        m = 26
+        n = self.n
+        m = self.m
         indices = set({12})
         # build a triangle from the top
         for i in range(n-4):
             for j in range(m):
-                if j in indices or board[i][j] == 0:
-                    board[i][j] = 0
+                if j in indices or board[i][j] == symbol:
+                    board[i][j] = symbol
                 else:
                     board[i][j] = blank
 
@@ -82,12 +125,33 @@ class Board:
         indices = set({12})
         for i in range(n-1, 4-1, -1):
             for j in range(m-1, -1, -1):
-                if j in indices or board[i][j] == 0:
-                    board[i][j] = 0
+                if j in indices or board[i][j] == symbol:
+                    board[i][j] = symbol
                 else:
                     board[i][j] = blank
 
             indices = set({x-1 for x in indices}) | set({x+1 for x in indices})
+
+    def start_game_board(self):
+        """
+        Setup game board with current players
+        """
+        if not self.players:
+            # need at least 1 palyer
+            return -1
+
+        self.refresh_board()  # start up board
+        for player in self.players:
+            self.fill_quadrant(
+                quadrant=player.id, fill=self.valid_colors[player.color])
+
+        self.turn = 0
+
+    def move(self, move: Move):
+        """
+        do a move on the board
+        """
+        pass
 
     def legal_moves(self):
         """
@@ -101,43 +165,6 @@ class Board:
         """
         pass
 
-
-# %%
-def clear_board(board, fill=-1):
-    for i in range(17):
-        for j in range(26):
-            board[i][j] = fill
-# %%
-
-
-def refresh_board(board, blank=-1):
-    clear_board(board, fill=blank)
-
-    n = 17
-    m = 26
-    indices = set({12})
-    # build a triangle from the top
-    for i in range(n-4):
-        for j in range(m):
-            if j in indices or board[i][j] == 0:
-                board[i][j] = 0
-            else:
-                board[i][j] = blank
-
-        indices = set({x-1 for x in indices}) | set({x+1 for x in indices})
-
-    # build a triangle from the bottom
-    indices = set({12})
-    for i in range(n-1, 4-1, -1):
-        for j in range(m-1, -1, -1):
-            if j in indices or board[i][j] == 0:
-                board[i][j] = 0
-            else:
-                board[i][j] = blank
-
-        indices = set({x-1 for x in indices}) | set({x+1 for x in indices})
-
-
 # %%
 
 
@@ -149,7 +176,7 @@ class asciiBoard(Board):
         s = []
         for i in range(self.n):
             for j in range(self.m):
-                if self.board[i][j] != -1:
+                if self.board[i][j] != 'NULL':
                     s.append(str(self.board[i][j]))
                 else:
                     # s.append(str(self.board[i][j]))
@@ -165,16 +192,17 @@ class asciiBoard(Board):
 
 
 class Player:
-    def __init__(self, color: str, board: Board, player_number: int):
+    def __init__(self, color: str, board: Board, id: int):
         self.color = color
         self.board = board
-        self.player_number = player_number
+        self.id = id
 
-    def setup(self, quadrant):
-        quadrant_indices = self.board.get_quadrant(quadrant)
-        for (i, j), x in np.ndenumerate(quadrant_indices):
-            if x == 1:
-                self.board[i, j] = self.color
+    def move():
+        """
+        Do a move. Check that it's your turn, and that the move is valid. 
+        """
+        pass
+
 
 # %%
 
@@ -205,4 +233,19 @@ class asciiPlayer(Player):
                         player_id=self.player_id)
             valid_move = move in self.board.legal_moves
 
+
+# %%
+board = asciiBoard()
+quadrant = 3
+region = board.get_quadrant(quadrant)
+board.fill_region(region, quadrant)
+print(board)
+
+# %%
+player1 = board.register_player(color='blue')
+player2 = board.register_player(color='red')
+# %%
+board.start_game_board()
+# %%
+print(board)
 # %%
