@@ -6,16 +6,10 @@ import numpy as np
 
 
 @dataclass(init=True)
-class Player:
-    color: str
-    player_id: int
-
-
-@dataclass(init=True)
 class Move:
     start: np.ndarray
     end: np.ndarray
-    player: Player
+    player_id: int
 
 
 # %%
@@ -52,14 +46,14 @@ class Board:
 
         self.legal_moves = np.array([])
 
-        self.players = []
+        self.players = {}
         self.turn = None  # player whose turn it is
 
     def register_player(self, color: str):
-        id = len(self.players) + 1
+        id = len(self.players.keys())
         if id <= 5 and color not in self.taken_colors and color in self.valid_colors:
-            player = Player(color=color, board=self.board, id=id)
-            self.players.append(player)
+            player = Player(color=color, board=self, id=id)
+            self.players[id] = player
             self.taken_colors[color] = True
             return player
         else:
@@ -141,7 +135,7 @@ class Board:
             return -1
 
         self.refresh_board()  # start up board
-        for player in self.players:
+        for player in self.players.values():
             self.fill_quadrant(
                 quadrant=player.id, fill=self.valid_colors[player.color])
 
@@ -151,7 +145,18 @@ class Board:
         """
         do a move on the board
         """
-        pass
+        start, end, player_id = move.start, move.end, move.player_id
+        color_short = self.valid_colors[self.players[player_id].color]
+        if self.turn != player_id:
+            return -1
+        elif self.board[start[0]][start[1]] != color_short:
+            # check that the starting piece owned by the player
+            return -1
+        elif self.board[end[0]][end[1]] != '0':
+            return -1
+
+        self.board[start[0]][start[1]] = '0'
+        self.board[end[0]][end[1]] = color_short
 
     def legal_moves(self):
         """
@@ -169,18 +174,29 @@ class Board:
 
 
 class asciiBoard(Board):
-    def __init__(self):
+    def __init__(self, show_axes=True):
         Board.__init__(self)
+        self.show_axes = show_axes
 
     def __str__(self):
         s = []
+
+        if self.show_axes:
+            print("   ", end='')
+            for i in range(self.m):
+                print(hex(i)[-1], end=' ')
+            print()
+
         for i in range(self.n):
+            if self.show_axes:
+                s.append(str(hex(i)[2]) + '  ')
             for j in range(self.m):
                 if self.board[i][j] != 'NULL':
                     s.append(str(self.board[i][j]))
                 else:
                     # s.append(str(self.board[i][j]))
-                    s.append(' ')
+                    # s.append(' ')
+                    s.append('-')
                 s.append(' ')
             s.append('\n')
         return "".join(s)
@@ -197,11 +213,18 @@ class Player:
         self.board = board
         self.id = id
 
-    def move():
+    def is_my_turn(self):
+        return self.id == self.board.turn
+
+    def move(self, start, end):
         """
         Do a move. Check that it's your turn, and that the move is valid. 
         """
-        pass
+        if not self.is_my_turn():
+            return -1
+
+        move = Move(start, end, self.id)
+        return board.move(move)
 
 
 # %%
